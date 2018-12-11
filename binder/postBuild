@@ -277,6 +277,17 @@ a:active {
     font-style: italic!important;
 }
 
+/* Chapters in menu */
+.chapters {
+    /* font-style: italic!important; */
+}
+
+/* Chapter numbers in menu */
+.chnum {
+    /* font-weight: bold; */
+}
+
+
 /* Imports */
 a.import {
     text-decoration: underline;
@@ -345,6 +356,7 @@ article {
   width: 100%;
   border-color: #660000;
   position: fixed;
+  z-index: 5000;
   transition: opacity 1s;
   margin: 0;
   padding: 0;
@@ -411,7 +423,7 @@ article {
   top: -1px;
   bottom: -1px;
   right: -2px;
-  z-index: 99;
+  z-index: 5010;
   border-color: #cc0000;
 }
 #cssmenu ul li.has-sub:hover > a:after,
@@ -435,7 +447,7 @@ article {
 #cssmenu > ul > li.has-sub:hover > a,
 #cssmenu > ol > li.has-sub:hover > a {
   padding-bottom: 14px;
-  z-index: 999;
+  z-index: 5020;
   border-color: #3f3f3f;
 }
 #cssmenu ul li.has-sub:hover > ul,
@@ -474,14 +486,14 @@ article {
   top: 38px;
   background: #3f3f3f;
   /* border-radius: 0 0 5px 5px; */
-  z-index: 999;
+  z-index: 5020;
   padding: 10px 0;
   transition: all 0.5s ease;
   transition-duration: 0.5s;
 }
 #cssmenu ul li > ul,
 #cssmenu ul li > ol {
-  width: 225px;
+  width: 240px;
 }
 #cssmenu ul ul ul,
 #cssmenu ul ul ol,
@@ -535,12 +547,12 @@ article {
   */
 }
 #cssmenu > ul > li > a:hover {
-  background: #660000;
+  background: #bb0000;
   color: #ffffff;
 }
 #cssmenu ul ul a:hover,
 #cssmenu ul ol a:hover {
-  background: #990000;
+  background: #bb0000;
   color: #ffffff;
 }
 #cssmenu > ul > li.has-sub > a:hover:before {

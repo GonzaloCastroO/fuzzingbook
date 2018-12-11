@@ -44,9 +44,7 @@ menu_start = r"""
         </ol>
      </li>
      <li class="has-sub"><a href="#"><span title="__CHAPTER_TITLE__"><i class="fa fa-fw fa-list-ul"></i></span> <span class="menu_2">__CHAPTER_TITLE_BETA__</span></a>
-        <ul>
            <__ALL_SECTIONS_MENU__>
-        </ul>
      </li>
      """
 
@@ -213,18 +211,18 @@ def get_description(notebook):
 def get_sections(notebook):
     """Return the section titles from a notebook file"""
     contents = get_text_contents(notebook)
-    matches = re.findall(r'^# (.*)', contents, re.MULTILINE)
+    matches = re.findall(r'^(# .*)', contents, re.MULTILINE)
     if len(matches) >= 5:
         # Multiple top sections (book?) - use these
         pass
     else:
-        # Use sections instead
-        matches = re.findall(r'^## (.*)', contents, re.MULTILINE)
-        
+        # Use sections and subsections instead
+        matches = re.findall(r'^(###? .*)', contents, re.MULTILINE)
+
     sections = [match.replace(r'\n', '') for match in matches]
     # print("Sections", repr(sections).encode('utf-8'))
     return sections
-    
+
     
 def anchor(title):
     """Return an anchor '#a-title' for a title 'A title'"""
@@ -412,9 +410,38 @@ if include_beta:
 notebook_html += "notebooks/"
 
 # Construct sections menu
-all_sections_menu = ""
+
 basename = os.path.splitext(os.path.basename(chapter_html_file))[0]
 chapter_ipynb_file = os.path.join("notebooks", basename + ".ipynb")
+
+all_sections_menu = ""
+sections = get_sections(chapter_ipynb_file)
+current_depth = 1
+
+for section in sections:
+    depth = section.count('#')
+    while section.startswith('#') or section.startswith(' '):
+        section = section[1:]
+
+    if depth == current_depth:
+        all_sections_menu += '</li>'
+    
+    if depth > current_depth:
+        all_sections_menu += "<ul>" * (depth - current_depth)
+
+    if depth < current_depth:
+        all_sections_menu += "</ul></li>" * (current_depth - depth)
+
+    all_sections_menu += '<li class="has-sub"><a href="%s">%s</a>\n' % (anchor(section), section)
+    current_depth = depth
+
+while current_depth > 1:
+    all_sections_menu += '</ul></li>'
+    current_depth -= 1
+
+
+# Construct chapter menu
+
 if args.home:
     chapter_html = site_html
     chapter_notebook_ipynb = notebook_html + "00_Table_of_Contents.ipynb"
@@ -431,35 +458,59 @@ if is_todo_chapter:
 if is_ready_chapter:
     chapter_title_beta += " " + ready_suffix
 
-sections = get_sections(chapter_ipynb_file)
-all_sections_menu = ""
-for section in sections:
-    item = '<li><a href="%s">%s</a></li>\n' % (anchor(section), section)
-    all_sections_menu += item
-
-
-# Construct chapter menu
 if args.home:
     link_class = ' class="this_page"'
 else:
     link_class = ''
 all_chapters_menu = '<li><a href="%s"%s><i class="fa fa-fw fa-home"></i> About this book</a></li>\n' % (site_html, link_class)
 
-for menu_ipynb_file in all_chapters:
+this_chapter_counter = 1
+for counter, menu_ipynb_file in enumerate(all_chapters):
+    if menu_ipynb_file == chapter_ipynb_file:
+        this_chapter_counter = counter
+
+CHAPTERS_PER_MENU = 5
+
+in_sublist = False
+for counter, menu_ipynb_file in enumerate(all_chapters):
     basename = os.path.splitext(os.path.basename(menu_ipynb_file))[0]
-    title = get_title(menu_ipynb_file)
+    title = '<span class="chnum">' + repr(counter + 1) + "</span> "
+
     if menu_ipynb_file == chapter_ipynb_file:
         link_class = ' class="this_page"'
+        # title += ' &bull;'
     else:
         link_class = ''
+    title += get_title(menu_ipynb_file)
+
     beta_indicator = ''
     if menu_ipynb_file in ready_chapters:
         beta_indicator = "&nbsp;" + ready_suffix
     if menu_ipynb_file in todo_chapters:
         beta_indicator = "&nbsp;" + todo_suffix
     menu_html_file = menu_prefix + basename + ".html"
-    item = '<li><a href="%s"%s>%s%s</a></li>\n' % (menu_html_file, link_class, title, beta_indicator)
+    
+    if counter // CHAPTERS_PER_MENU == this_chapter_counter // CHAPTERS_PER_MENU:
+        if in_sublist:
+            all_chapters_menu += "</ul>"
+            in_sublist = False
+    elif counter % CHAPTERS_PER_MENU == 0:
+        if in_sublist:
+            all_chapters_menu += "</ul>"
+        subtitle = "Chapters " + repr(counter + 1) + "&ndash;" + \
+            repr(min(len(all_chapters), counter + CHAPTERS_PER_MENU))
+        all_chapters_menu += '<li class="has-sub"><a href="%s" class="chapters">%s%s' \
+            % (menu_html_file, subtitle, beta_indicator)
+        all_chapters_menu += ' <i class="fa fa-fw fa-caret-right"></i></a><ul>'
+        in_sublist = True
+    
+    item = '<li><a href="%s"%s>%s%s</a></li>\n' % \
+        (menu_html_file, link_class, title, beta_indicator)
     all_chapters_menu += item
+    
+if in_sublist:
+    all_chapters_menu += "</ul>"
+    in_sublist = False
 
 # Description
 description = html.escape(get_description(chapter_ipynb_file))
@@ -534,11 +585,11 @@ chapter_contents = add_links_to_imports(chapter_contents)
 
 # Fix simple .ipynb links within text
 if args.home:
-    chapter_contents = re.sub(r'<a href="([a-zA-Z0-9_]*)\.ipynb">', 
-        r'<a href="html/\1.html">', chapter_contents)
+    chapter_contents = re.sub(r'<a href="([a-zA-Z0-9_]*)\.ipynb', 
+        r'<a href="html/\1.html', chapter_contents)
 else:
-    chapter_contents = re.sub(r'<a href="([a-zA-Z0-9_]*)\.ipynb">', 
-        r'<a href="\1.html">', chapter_contents)
+    chapter_contents = re.sub(r'<a href="([a-zA-Z0-9_]*)\.ipynb', 
+        r'<a href="\1.html', chapter_contents)
 
 # Recode TeX accents imported from fuzzingbook.bib
 chapter_contents = bibtex_unescape(chapter_contents)

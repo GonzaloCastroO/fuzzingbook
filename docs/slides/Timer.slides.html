@@ -13367,6 +13367,17 @@ a:active {
     font-style: italic!important;
 }
 
+/* Chapters in menu */
+.chapters {
+    /* font-style: italic!important; */
+}
+
+/* Chapter numbers in menu */
+.chnum {
+    /* font-weight: bold; */
+}
+
+
 /* Imports */
 a.import {
     text-decoration: underline;
@@ -13435,6 +13446,7 @@ article {
   width: 100%;
   border-color: #660000;
   position: fixed;
+  z-index: 5000;
   transition: opacity 1s;
   margin: 0;
   padding: 0;
@@ -13501,7 +13513,7 @@ article {
   top: -1px;
   bottom: -1px;
   right: -2px;
-  z-index: 99;
+  z-index: 5010;
   border-color: #cc0000;
 }
 #cssmenu ul li.has-sub:hover > a:after,
@@ -13525,7 +13537,7 @@ article {
 #cssmenu > ul > li.has-sub:hover > a,
 #cssmenu > ol > li.has-sub:hover > a {
   padding-bottom: 14px;
-  z-index: 999;
+  z-index: 5020;
   border-color: #3f3f3f;
 }
 #cssmenu ul li.has-sub:hover > ul,
@@ -13564,14 +13576,14 @@ article {
   top: 38px;
   background: #3f3f3f;
   /* border-radius: 0 0 5px 5px; */
-  z-index: 999;
+  z-index: 5020;
   padding: 10px 0;
   transition: all 0.5s ease;
   transition-duration: 0.5s;
 }
 #cssmenu ul li > ul,
 #cssmenu ul li > ol {
-  width: 225px;
+  width: 240px;
 }
 #cssmenu ul ul ul,
 #cssmenu ul ul ol,
@@ -13625,12 +13637,12 @@ article {
   */
 }
 #cssmenu > ul > li > a:hover {
-  background: #660000;
+  background: #bb0000;
   color: #ffffff;
 }
 #cssmenu ul ul a:hover,
 #cssmenu ul ol a:hover {
-  background: #990000;
+  background: #bb0000;
   color: #ffffff;
 }
 #cssmenu > ul > li.has-sub > a:hover:before {
@@ -13906,7 +13918,7 @@ a.anchor-link {
 
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Stopping total time:
-0.042902526998659596
+0.04478592611849308
 </pre>
 </div>
 </div>
@@ -13941,16 +13953,16 @@ a.anchor-link {
 
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Stopping time in between:
-2.8620052034966648e-06
-3.043100150534883e-05
-3.985500370617956e-05
-4.705800529336557e-05
-5.399200017563999e-05
-0.0004368090012576431
-0.00045903900172561407
-0.0004743169993162155
-0.0004891400021733716
-0.0005025680002290756
+2.3369211703538895e-06
+2.890988253057003e-05
+4.371395334601402e-05
+5.7502882555127144e-05
+7.124291732907295e-05
+8.475594222545624e-05
+9.817304089665413e-05
+0.00017560808919370174
+0.00022002100013196468
+0.0002604599576443434
 </pre>
 </div>
 </div>

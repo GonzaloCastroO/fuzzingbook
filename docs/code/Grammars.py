@@ -3,7 +3,7 @@
 
 # This material is part of "Generating Software Tests".
 # Web site: https://www.fuzzingbook.org/html/Grammars.html
-# Last change: 2018-11-13 18:19:42+01:00
+# Last change: 2018-12-11 17:26:09+01:00
 #
 #
 # Copyright (c) 2018 Saarland University, CISPA, authors, and contributors
@@ -201,6 +201,75 @@ if __name__ == "__main__":
         print(simple_grammar_fuzzer(grammar=EXPR_GRAMMAR, max_nonterminals=5))
 
 
+# ## Visualizing Grammars as Railroad Diagrams
+
+if __name__ == "__main__":
+    print('\n## Visualizing Grammars as Railroad Diagrams')
+
+
+
+
+if __package__ is None or __package__ == "":
+    from RailroadDiagrams import NonTerminal, Terminal, Choice, HorizontalChoice, Sequence, Diagram, show_diagram
+else:
+    from .RailroadDiagrams import NonTerminal, Terminal, Choice, HorizontalChoice, Sequence, Diagram, show_diagram
+
+from IPython.display import SVG, HTML, display
+
+def syntax_diagram_symbol(symbol):
+    if is_nonterminal(symbol):
+        return NonTerminal(symbol[1:-1])
+    else:
+        return Terminal(symbol)
+
+if __name__ == "__main__":
+    SVG(show_diagram(syntax_diagram_symbol('<term>')))
+
+
+def syntax_diagram_expr(expansion):
+    # In later chapters, we allow expansions to be tuples,
+    # with the expansion being the first element
+    if isinstance(expansion, tuple):
+        expansion = expansion[0]
+
+    symbols = [sym for sym in re.split(RE_NONTERMINAL, expansion) if sym != ""]
+    if len(symbols) == 0:
+        symbols = [""]  # special case: empty expansion
+    
+    return Sequence(*[syntax_diagram_symbol(sym) for sym in symbols])
+
+if __name__ == "__main__":
+    SVG(show_diagram(syntax_diagram_expr(EXPR_GRAMMAR['<term>'][0])))
+
+
+from itertools import zip_longest
+
+def syntax_diagram_alt(alt):
+    max_len = 5
+    l = len(alt)
+    if l > max_len:
+        iter_len = l // max_len
+        alts = list(zip_longest(*[alt[i::iter_len] for i in range(iter_len)]))
+        exprs = [[syntax_diagram_expr(expr) for expr in alt
+                  if expr is not None] for alt in alts]
+        choices = [Choice(len(expr)//2,*expr) for expr in exprs]
+        return HorizontalChoice(*choices)
+    else:
+        return Choice(l//2,*[syntax_diagram_expr(expr) for expr in alt])
+
+if __name__ == "__main__":
+    SVG(show_diagram(syntax_diagram_alt(EXPR_GRAMMAR['<digit>'])))
+
+
+def syntax_diagram(grammar):
+    for key in grammar:
+        print("%s" % key[1:-1])
+        display(SVG(show_diagram(syntax_diagram_alt(grammar[key]))))
+
+if __name__ == "__main__":
+    syntax_diagram(EXPR_GRAMMAR)
+
+
 # ## Some Grammars
 
 if __name__ == "__main__":
@@ -240,6 +309,10 @@ CGI_GRAMMAR = {
     "<other>":  # Actually, could be _all_ letters
         ["0", "1", "2", "3", "4", "5", "a", "b", "c", "d", "e", "-", "_"],
 }
+
+if __name__ == "__main__":
+    syntax_diagram(CGI_GRAMMAR)
+
 
 if __name__ == "__main__":
     for i in range(10):
@@ -286,6 +359,10 @@ URL_GRAMMAR = {
 }
 
 if __name__ == "__main__":
+    syntax_diagram(URL_GRAMMAR)
+
+
+if __name__ == "__main__":
     for i in range(10):
         print(simple_grammar_fuzzer(grammar=URL_GRAMMAR, max_nonterminals=10))
 
@@ -315,6 +392,10 @@ TITLE_GRAMMAR = {
     "<reader-property>": ["Fun", "Profit"],
     "<software-property>": ["Robustness", "Reliability", "Security"],
 }
+
+if __name__ == "__main__":
+    syntax_diagram(TITLE_GRAMMAR)
+
 
 if __name__ == "__main__":
     titles = set()
@@ -352,14 +433,13 @@ if __name__ == "__main__":
 
 
 if __name__ == "__main__":
-    for i in range(20):
-        print(m.fuzz())
+    [m.fuzz() for i in range(20)]
 
 
-# ## Grammar Shortcuts
+# ## A Grammar Toolbox
 
 if __name__ == "__main__":
-    print('\n## Grammar Shortcuts')
+    print('\n## A Grammar Toolbox')
 
 
 
@@ -499,7 +579,7 @@ if __name__ == "__main__":
 
 
 
-RE_PARENTHESIZED_EXPR = re.compile(r'\([^())]*\)[?+*]')
+RE_PARENTHESIZED_EXPR = re.compile(r'\([^()]*\)[?+*]')
 
 def parenthesized_expressions(expansion):
     # In later chapters, we allow expansions to be tuples,
@@ -623,6 +703,71 @@ if __name__ == "__main__":
     expr_grammar
 
 
+# ### Grammar Extensions
+
+if __name__ == "__main__":
+    print('\n### Grammar Extensions')
+
+
+
+
+def opts(**kwargs):
+    return kwargs
+
+if __name__ == "__main__":
+    opts(min_depth=10)
+
+
+def exp_string(expansion):
+    """Return the string to be expanded"""
+    if isinstance(expansion, str):
+        return expansion
+    return expansion[0]
+
+if __name__ == "__main__":
+    exp_string(("<term> + <expr>", opts(min_depth=10)))
+
+
+def exp_opts(expansion):
+    """Return the options of an expansion.  If options are not defined, return {}"""
+    if isinstance(expansion, str):
+        return {}
+    return expansion[1]
+
+def exp_opt(expansion, attribute):
+    """Return the given attribution of an expansion.  
+    If attribute is not defined, return None"""
+    return exp_opts(expansion).get(attribute, None)
+
+if __name__ == "__main__":
+    exp_opts(("<term> + <expr>", opts(min_depth=10)))
+
+
+if __name__ == "__main__":
+    exp_opt(("<term> - <expr>", opts(max_depth=2)), 'max_depth')
+
+
+def set_opts(grammar, symbol, expansion, opts=None):
+    """Set the options of the given expansion of grammar[symbol] to opts"""
+    expansions = grammar[symbol]
+    for i, exp in enumerate(expansions):
+        if exp_string(exp) != exp_string(expansion):
+            continue
+            
+        new_opts = exp_opts(exp)
+        if opts is None or new_opts == {}:
+            new_opts = opts
+        else:
+            for key in opts:
+                new_opts[key] = opts[key]
+        if new_opts == {}:
+            grammar[symbol][i] = exp_string(exp)
+        else:
+            grammar[symbol][i] = (exp_string(exp), new_opts)
+        return
+
+    raise KeyError("no expansion " + repr(symbol) + " -> " + repr(exp_string(expansion)))
+
 # ## Checking Grammars
 
 if __name__ == "__main__":
@@ -635,7 +780,7 @@ import sys
 
 def def_used_nonterminals(grammar, start_symbol=START_SYMBOL):
     defined_nonterminals = set()
-    used_nonterminals = set([start_symbol])
+    used_nonterminals = {start_symbol}
 
     for defined_nonterminal in grammar:
         defined_nonterminals.add(defined_nonterminal)
@@ -664,11 +809,40 @@ def def_used_nonterminals(grammar, start_symbol=START_SYMBOL):
 
     return defined_nonterminals, used_nonterminals
 
-def is_valid_grammar(grammar, start_symbol=START_SYMBOL):
-    defined_nonterminals, used_nonterminals = def_used_nonterminals(
-        grammar, start_symbol)
+def reachable_nonterminals(grammar, start_symbol=START_SYMBOL):
+    reachable = set()
+    
+    def _find_reachable_nonterminals(grammar, symbol):
+        nonlocal reachable
+        reachable.add(symbol)
+        for expansion in grammar.get(symbol, []):
+            for nonterminal in nonterminals(expansion):
+                if nonterminal not in reachable:
+                    _find_reachable_nonterminals(grammar, nonterminal)
+    
+    _find_reachable_nonterminals(grammar, start_symbol)
+    return reachable
+
+def unreachable_nonterminals(grammar, start_symbol=START_SYMBOL):
+    return grammar.keys() - reachable_nonterminals(grammar, start_symbol)
+
+def opts_used(grammar):
+    used_opts = set()
+    for symbol in grammar:
+        for expansion in grammar[symbol]:
+            used_opts |= set(exp_opts(expansion).keys())
+    return used_opts
+
+def is_valid_grammar(grammar, start_symbol=START_SYMBOL, supported_opts=None):
+    defined_nonterminals, used_nonterminals = \
+        def_used_nonterminals(grammar, start_symbol)
     if defined_nonterminals is None or used_nonterminals is None:
         return False
+    
+    # Do not complain about '<start>' being not used,
+    # even if start_symbol is different
+    if START_SYMBOL in grammar:
+        used_nonterminals.add(START_SYMBOL)
 
     for unused_nonterminal in defined_nonterminals - used_nonterminals:
         print(repr(unused_nonterminal) + ": defined, but not used",
@@ -677,7 +851,24 @@ def is_valid_grammar(grammar, start_symbol=START_SYMBOL):
         print(repr(undefined_nonterminal) + ": used, but not defined",
               file=sys.stderr)
 
-    return used_nonterminals == defined_nonterminals
+    # Symbols must be reachable either from <start> or given start symbol
+    unreachable = unreachable_nonterminals(grammar, start_symbol)
+    msg_start_symbol = start_symbol
+    if START_SYMBOL in grammar:
+        unreachable = unreachable - reachable_nonterminals(grammar, START_SYMBOL)
+        if start_symbol != START_SYMBOL:
+            msg_start_symbol += " or " + START_SYMBOL
+    for unreachable_nonterminal in unreachable:
+        print(repr(unreachable_nonterminal) + ": unreachable from " + msg_start_symbol,
+              file=sys.stderr)
+
+    used_but_not_supported_opts = set()
+    if supported_opts is not None:
+        used_but_not_supported_opts = opts_used(grammar).difference(supported_opts)
+        for opt in used_but_not_supported_opts:
+            print("warning: option " + repr(opt) + " is not supported", file=sys.stderr)
+
+    return used_nonterminals == defined_nonterminals and len(unreachable) == 0
 
 if __name__ == "__main__":
     assert is_valid_grammar(EXPR_GRAMMAR)

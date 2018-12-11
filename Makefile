@@ -56,7 +56,7 @@ CODE_TARGET    := beta/$(CODE_TARGET)
 BETA_FLAG = --include-ready --include-todo
 endif
 
-# Files to apear in the table of contents
+# Files to appear in the table of contents
 ifndef BETA
 TOC_CHAPTERS := $(PUBLIC_CHAPTERS)
 TOC_APPENDICES = $(APPENDICES)
@@ -66,17 +66,24 @@ TOC_CHAPTERS := $(CHAPTERS)
 TOC_APPENDICES = $(APPENDICES)
 endif
 
+# Files to appear on the Web page
+DOCS = \
+	$(FRONTMATTER:%.ipynb=%) \
+	$(TOC_CHAPTERS:%.ipynb=%) \
+	$(APPENDICES:%.ipynb=%) \
+	$(EXTRAS:%.ipynb=%)
+
 
 # Various derived files
 TEXS      = $(SOURCE_FILES:%.ipynb=$(PDF_TARGET)%.tex)
 PDFS      = $(SOURCE_FILES:%.ipynb=$(PDF_TARGET)%.pdf)
-HTMLS     = $(SOURCE_FILES:%.ipynb=$(HTML_TARGET)%.html)
+HTMLS     = $(SOURCE_FILES:%.ipynb=$(HTML_TARGET)%.html) $(HTML_TARGET)00_Index.html
 SLIDES    = $(SOURCE_FILES:%.ipynb=$(SLIDES_TARGET)%.slides.html)
 PYS       = $(SOURCE_FILES:%.ipynb=$(CODE_TARGET)%.py) $(CODE_TARGET)setup.py $(CODE_TARGET)__init__.py
 WORDS     = $(SOURCE_FILES:%.ipynb=$(WORD_TARGET)%.docx)
 MARKDOWNS = $(SOURCE_FILES:%.ipynb=$(MARKDOWN_TARGET)%.md)
 EPUBS     = $(SOURCE_FILES:%.ipynb=$(EPUB_TARGET)%.epub)
-FULLS     = $(SOURCE_FILES:%.ipynb=$(FULL_NOTEBOOKS)/%.ipynb)
+FULLS     = $(SOURCE_FILES:%.ipynb=$(FULL_NOTEBOOKS)/%.ipynb) $(FULL_NOTEBOOKS)/00_Index.ipynb
 DEPENDS   = $(SOURCE_FILES:%.ipynb=$(DEPEND_TARGET)%.ipynb_depend)
 
 CHAPTER_PYS = $(CHAPTERS:%.ipynb=$(CODE_TARGET)%.py)
@@ -386,8 +393,7 @@ $(DOCS_TARGET)index.html: \
 
 # 404.html comes with absolute links (/html/) such that it works anywhare
 # https://help.github.com/articles/creating-a-custom-404-page-for-your-github-pages-site/
-$(DOCS_TARGET)404.html: \
-	$(FULL_NOTEBOOKS)/404.ipynb $(HTML_DEPS)
+$(DOCS_TARGET)404.html: $(FULL_NOTEBOOKS)/404.ipynb $(HTML_DEPS)
 	@test -d $(DOCS_TARGET) || $(MKDIR) $(DOCS_TARGET)
 	@test -d $(HTML_TARGET) || $(MKDIR) $(HTML_TARGET)
 	$(CONVERT_TO_HTML) $<
@@ -396,9 +402,15 @@ $(DOCS_TARGET)404.html: \
 	$(PYTHON) utils/post-html.py --menu-prefix=/html/ --home $(POST_HTML_OPTIONS) $@
 	(echo '---'; echo 'permalink: /404.html'; echo '---'; cat $@) > $@~ && mv $@~ $@
 	@$(OPEN) $@
+	
+$(DOCS_TARGET)html/00_Index.html: $(DOCS_TARGET)notebooks/00_Index.ipynb $(HTML_DEPS)
+	$(CONVERT_TO_HTML) $<
+	@cd $(HTML_TARGET) && $(RM) -r 00_Index.nbpub.log 00_Index_files
+	@cd $(DOCS_TARGET)html && $(RM) -r 00_Index.nbpub.log 00_Index_files
+	mv $(HTML_TARGET)00_Index.html $@
+	$(PYTHON) utils/post-html.py $(POST_HTML_OPTIONS) $@
 
-$(HTML_TARGET)%.html: \
-	$(FULL_NOTEBOOKS)/%.ipynb $(HTML_DEPS)
+$(HTML_TARGET)%.html: $(FULL_NOTEBOOKS)/%.ipynb $(HTML_DEPS)
 	@test -d $(HTML_TARGET) || $(MKDIR) $(HTML_TARGET)
 	$(CONVERT_TO_HTML) $<
 	@cd $(HTML_TARGET) && $(RM) $*.nbpub.log $*_files/$(BIB)
@@ -574,7 +586,7 @@ stats: $(SOURCES)
 # Run all code.  This should produce no failures.
 PYS_OUT = $(SOURCE_FILES:%.ipynb=$(CODE_TARGET)%.py.out)
 $(CODE_TARGET)%.py.out:	$(CODE_TARGET)%.py
-	$(PYTHON) $< > $@ 2>&1 || (echo "Error while running $(PYTHON)" >> $@; tail $@; exit 1)
+	$(PYTHON) $< > $@ 2>&1 || (echo "Error while running $<" >> $@; tail $@; exit 1)
 
 .PHONY: check-code
 check-code: code $(PYS_OUT)
@@ -584,8 +596,8 @@ check-code: code $(PYS_OUT)
 IMPORTS = $(subst .ipynb,,$(CHAPTERS) $(APPENDICES))
 .PHONY: check-import check-imports
 check-import check-imports: code
-	echo "#!/usr/bin/env $(PYTHON)" > $(CODE_TARGET)import_all.py
-	(for file in $(IMPORTS); do echo import $$file; done) >> $(CODE_TARGET)import_all.py
+	@echo "#!/usr/bin/env $(PYTHON)" > $(CODE_TARGET)import_all.py
+	@(for file in $(IMPORTS); do echo import $$file; done) >> $(CODE_TARGET)import_all.py
 	cd $(CODE_TARGET); $(PYTHON) import_all.py 2>&1 | tee import_all.py.out
 	@test ! -s $(CODE_TARGET)import_all.py.out && echo "All import checks passed."
 	@$(RM) $(CODE_TARGET)import_all.py*
@@ -628,7 +640,7 @@ metadata: $(ADD_METADATA)
 
 ## Publishing
 .PHONY: docs
-docs: publish-notebooks publish-html publish-code publish-dist \
+docs: publish-notebooks publish-index publish-html publish-code publish-dist \
 	publish-slides publish-pics \
 	$(DOCS_TARGET)index.html $(DOCS_TARGET)404.html README.md binder/postBuild
 	@echo "Now use 'make publish-all' to commit changes to docs."
@@ -644,28 +656,41 @@ publish: docs
 	-git commit -m "Doc update" $(DOCS_TARGET) binder README.md
 	@echo "Now use 'make push' to place docs on website and trigger a mybinder update"
 
-# Add/update HTML code in repository
-.PHONY: publish-html
-publish-html: html
+# Add/update HTML code in Web pages
+.PHONY: publish-html publish-html-setup
+publish-html: html publish-html-setup \
+	$(DOCS_TARGET)html/00_Index.html \
+	$(DOCS_TARGET)html/custom.css \
+	$(DOCS_TARGET)html/favicon \
+	$(DOCS:%=$(DOCS_TARGET)html/%.html) \
+	$(DOCS:%=$(DOCS_TARGET)html/%_files)
+	
+publish-html-setup:
 	@test -d $(DOCS_TARGET) || $(MKDIR) $(DOCS_TARGET)
 	@test -d $(DOCS_TARGET)html || $(MKDIR) $(DOCS_TARGET)html
-	cp -pr $(HTML_TARGET) $(DOCS_TARGET)html
+	
+$(DOCS_TARGET)html/%: $(HTML_TARGET)%
+	cp -pr $< $@
 
-.PHONY: publish-code
-publish-code: code
+# Add/update Python code on Web pages
+.PHONY: publish-code publish-code-setup
+publish-code: code publish-code-setup \
+	$(DOCS_TARGET)code/LICENSE.md \
+	$(DOCS_TARGET)code/README.md \
+	$(DOCS_TARGET)code/fuzzingbook_utils \
+	$(DOCS_TARGET)code/setup.py \
+	$(PUBLIC_CHAPTERS:%.ipynb=$(DOCS_TARGET)code/%.py) \
+	$(APPENDICES:%.ipynb=$(DOCS_TARGET)code/%.py)
+
+publish-code-setup:
 	@test -d $(DOCS_TARGET) || $(MKDIR) $(DOCS_TARGET)
-	$(RM) -r $(DOCS_TARGET)code
 	@test -d $(DOCS_TARGET)code || $(MKDIR) $(DOCS_TARGET)code
-	cp -pr $(CODE_TARGET) $(DOCS_TARGET)code
-	$(RM) $(DOCS_TARGET)code/*.py.out $(DOCS_TARGET)code/*.cfg $(DOCS_TARGET)code/*.in
-	$(RM) -r $(DOCS_TARGET)code/__pycache__ \
-	 	$(DOCS_TARGET)code/fuzzingbook_utils/__pycache__
-	for file in $(EXTRAS:%.ipynb=%.py) $(FRONTMATTER:%.ipynb=%.py); do \
-		$(RM) $(DOCS_TARGET)code/$$file; \
-	done
+	
+$(DOCS_TARGET)code/%: $(CODE_TARGET)%
+	cp -pr $< $@
 
 .PHONY: dist publish-dist
-dist publish-dist: check-import check-code publish-code delete-betas toc \
+dist publish-dist: check-import check-code publish-code toc \
 	$(DOCS_TARGET)dist/fuzzingbook-code.zip \
 	$(DOCS_TARGET)dist/fuzzingbook-notebooks.zip
 
@@ -700,56 +725,73 @@ $(DOCS_TARGET)dist/fuzzingbook-notebooks.zip: $(FULLS) $(CHAPTERS_MAKEFILE)
 	mv $(DOCS_TARGET)fuzzingbook-notebooks.zip $@
 	@echo "Created notebook distribution files in $(DOCS_TARGET)dist"
 
-.PHONY: publish-slides
-publish-slides: slides
+
+# Add/update slides on Web pages
+.PHONY: publish-slides publish-slides-setup
+publish-slides: slides publish-slides-setup \
+	$(PUBLIC_CHAPTERS:%.ipynb=$(DOCS_TARGET)slides/%.slides.html) \
+	$(APPENDICES:%.ipynb=$(DOCS_TARGET)slides/%.slides.html)
+	
+publish-slides-setup:
 	@test -d $(DOCS_TARGET) || $(MKDIR) $(DOCS_TARGET)
 	@test -d $(DOCS_TARGET)slides || $(MKDIR) $(DOCS_TARGET)slides
-	cp -pr $(SLIDES_TARGET) $(DOCS_TARGET)slides
 
-.PHONY: publish-notebooks
-publish-notebooks: full-notebooks
+$(DOCS_TARGET)slides/%: $(SLIDES_TARGET)%
+	cp -pr $< $@
+
+
+# Add/update notebooks on Web pages
+.PHONY: publish-notebooks publish-notebooks-setup
+publish-notebooks: full-notebooks publish-notebooks-setup \
+	$(DOCS_TARGET)notebooks/custom.css \
+	$(DOCS_TARGET)notebooks/fuzzingbook.bib \
+	$(DOCS_TARGET)notebooks/LICENSE.md \
+	$(DOCS_TARGET)notebooks/README.md \
+	$(DOCS:%=$(DOCS_TARGET)notebooks/%.ipynb)
+	
+publish-notebooks-setup:
 	@test -d $(DOCS_TARGET) || $(MKDIR) $(DOCS_TARGET)
 	@test -d $(DOCS_TARGET)notebooks || $(MKDIR) $(DOCS_TARGET)notebooks
-	cp -pr $(FULL_NOTEBOOKS)/* $(DOCS_TARGET)notebooks
 
-.PHONY: publish-pics
-publish-pics: $(NOTEBOOKS)/PICS
+$(DOCS_TARGET)notebooks/%: $(FULL_NOTEBOOKS)/%
+	cp -pr $< $@
+
+.PHONY: publish-index
+publish-index: $(DOCS_TARGET)notebooks/00_Index.ipynb
+
+
+# Add/update pics on Web pages
+.PHONY: publish-pics publish-pics-setup
+publish-pics: publish-pics-setup $(NOTEBOOKS)/PICS
+	cp -pr $(NOTEBOOKS)/PICS $(DOCS_TARGET)notebooks
+
+publish-pics-setup:
 	@test -d $(DOCS_TARGET) || $(MKDIR) $(DOCS_TARGET)
 	@test -d $(DOCS_TARGET)PICS || $(MKDIR) $(DOCS_TARGET)PICS
-	cp -pr $(NOTEBOOKS)/PICS $(DOCS_TARGET)notebooks
 	$(RM) -fr $(DOCS_TARGET)html/PICS; ln -s ../$(NOTEBOOKS)/PICS $(DOCS_TARGET)html
 	$(RM) -fr $(DOCS_TARGET)slides/PICS; ln -s ../$(NOTEBOOKS)/PICS $(DOCS_TARGET)slides
 
-ifndef BETA
-# Remove all chapters marked as beta
-.PHONY: delete-betas
-delete-betas: publish-code publish-html publish-slides
-	@cd $(DOCS_TARGET); \
-	for chapter in $(BETA_CHAPTERS); do \
-	    module=$$(basename $$chapter .ipynb); \
-		echo "Removing '$$module' (beta)"; \
-		$(RM) code/$$module.py; \
-		$(RM) html/$$module.html; \
-		$(RM) -r html/$${module}_files; \
-		$(RM) notebooks/$$module.ipynb; \
-		$(RM) slides/$$module.slides.html; \
-	done
-endif
-
-ifdef BETA
-# On the beta site, we don't delete stuff
-.PHONY: delete-betas
-delete-betas:
-endif
 
 # Table of contents
 .PHONY: toc
 toc: $(DOCS_TARGET)notebooks/00_Table_of_Contents.ipynb
-$(DOCS_TARGET)notebooks/00_Table_of_Contents.ipynb: utils/nbtoc.py Makefile
+$(DOCS_TARGET)notebooks/00_Table_of_Contents.ipynb: utils/nbtoc.py \
+	$(TOC_CHAPTERS:%=$(DOCS_TARGET)notebooks/%) \
+	$(TOC_APPENDICES:%=$(DOCS_TARGET)notebooks/%) \
+	$(CHAPTERS_MAKEFILE)
 	$(RM) $@
 	$(PYTHON) utils/nbtoc.py \
 		--chapters="$(TOC_CHAPTERS:%=$(DOCS_TARGET)notebooks/%)" \
 		--appendices="$(TOC_APPENDICES:%=$(DOCS_TARGET)notebooks/%)" > $@
+		
+# Index
+.PHONY: index
+index: $(NOTEBOOKS)/00_Index.ipynb
+$(NOTEBOOKS)/00_Index.ipynb $(DOCS_TARGET)notebooks/00_Index.ipynb: utils/nbindex.py \
+	$(TOC_CHAPTERS:%=$(DOCS_TARGET)notebooks/%) \
+	$(TOC_APPENDICES:%=$(DOCS_TARGET)notebooks/%) \
+	$(CHAPTERS_MAKEFILE)
+	(cd $(NOTEBOOKS); $(PYTHON) ../utils/nbindex.py $(TOC_CHAPTERS) $(APPENDICES)) > $@
 
 ## Python packages
 # After this, you can do 'pip install fuzzingbook' 
@@ -790,6 +832,20 @@ binder/binder.log: .FORCE
 	@docker version > /dev/null
 	jupyter-repo2docker --debug $(GITHUB_REPO) 2>&1 | tee $@
 
+
+## Docker services (experimental)
+docker:
+	docker pull fuzzingbook/student
+	-docker run -d -p 8888:8888 --name fuzzing-book-instance fuzzingbook/student
+
+docker-start:
+	docker start fuzzing-book-instance
+	sleep 2
+	@URL=$$(docker exec -it fuzzing-book-instance jupyter notebook list | grep http | awk '{ print $$1 }'); echo $$URL; open $$URL
+
+docker-stop:
+	docker stop fuzzing-book-instance
+	
 
 
 ## Cleanup
@@ -853,6 +909,7 @@ $(DEPEND_TARGET)%.ipynb_depend: $(NOTEBOOKS)/%.ipynb
 	@for import in `$(NBDEPEND) $<`; do \
 		if [ -f $(NOTEBOOKS)/$$import.ipynb ]; then \
 			echo '$$''(FULL_NOTEBOOKS)/$(notdir $<): $$''(NOTEBOOKS)/'"$$import.ipynb"; \
+			echo '$$''(CODE_TARGET)$(notdir $(<:%.ipynb=%.py.out)): $$''(CODE_TARGET)'"$$import.py"; \
 		fi; \
 	done > $@
 
